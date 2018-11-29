@@ -12,7 +12,7 @@
 # B. Perhaps an interactive mode that lists what images are going to be selected?
 #	-custom : let the user specify the ffmpeg command to execute
 #		- have var CUSTOM_COMMAND in the script for the user to edit
-#		- or have a command supplied to the script from stdout, or files or whatevs
+#		- or have a command supplied to the script from stdin, or files or whatevs
 # if -s is not specified, don't use it
 # if -crf is not specified, let it be 18
 # 2 major running modes: 1. -test 2. -final
@@ -23,7 +23,6 @@
 #		-crf 18 (for sanest, yet the best render)
 ###########
 
-# TO-DO: Make sure user specification over-ride presets
 
 PROGNAME="${0##*/}"
 
@@ -53,8 +52,7 @@ apply_preset () {
 
 	local PRESET="${1^^}"
 	local PARAMS_DEFINED # Parameters defined in PRESET
-	eval PARAMS_DEFINED=\$\{\!PRESET\[\@\]\}
-
+	PARAMS_DEFINED=$(eval echo \$\{\!$PRESET\[\@\]\})
 	for param in $PARAMS_DEFINED; do
 		eval $param=\$\{$PRESET\[$param\]\}
 	done
@@ -63,6 +61,7 @@ apply_preset () {
 usage () {
 	# if more than one preset has been applied, only applies the first one
 	# ignores all the rest
+	return
 }
 
 check_for_presets () {
@@ -84,9 +83,12 @@ check_for_presets () {
 check_for_presets "$*" # First, check for, and apply, presets
 
 while [[ -n "$1" ]]; do
+	# if the argument is a preset, ignore it, as presets have already been applied
+	if [[ $(echo ${PRESETS[@]} | sed 's/\([[:alpha:]]*\)/\L-\1/g' | sed 's/ / | /g ') =~ "$1" ]]; then
+		shift
+	fi
+
 	case "$1" in
-		# if the argument is a preset, ignore it
-		# applied already
 		-h | --help) usage
 		             exit
 			     ;;
@@ -102,7 +104,11 @@ while [[ -n "$1" ]]; do
 		-i)	shift
 			read INPUT_PATTERN < <(echo "$1") # To prevent wildcard-expansion
 			;;
-		*)	usage >&2 exit 1 ;;
+		*)	usage >&2
+			exit 1
+			;;
 	esac
 	shift
 done
+
+set -o noglob; ffmpeg -framerate $FPS -pattern_type glob -i $INPUT_PATTERN -s $RESOLUTION -c:v libx264 -crf $CRF ${FPS}FPS_${RESOLUTION}_CRF${CRF}.mkv
