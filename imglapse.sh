@@ -75,7 +75,7 @@ usage () {
 	-crf N
 	    Set the Constant Rate Factor to N
 	    Valid CRF values are from 0 to 51. 51 is the worst, 0 is lossless.
-	    18-27 is the sane value range.
+	    18-27 is the sane value range. (Defaults to 18, if unspecified.)
 
 	-res RESOLUTION
 	    Set the output file resolution to RESOLUTION.
@@ -83,6 +83,7 @@ usage () {
 	        W = Width and H = Height
 	    Standared ffmpeg size presets are also accepted. Some of these are:
 	    hd480, hd720, hd1080
+	    If unspecified, defaults to hd1080 
 
 	-r, --reverse
 	    Reverse the input stream (essentially gives a reversed video)
@@ -165,7 +166,7 @@ while [[ -n "$1" ]]; do
 			read INPUT_LOCATION < <(dirname "$1") # If the user has specified a directory
 			;;
 		-o)	shift
-			OUTPUT_LOCATION="$1"
+			OUTPUT_LOCATION=$(realpath "$1")
 			[[ -d "$OUTPUT_LOCATION" ]] || {
 				echo "The specified output directory '$OUTPUT_LOCATION' does not exist." >&2
 				exit 1
@@ -179,6 +180,8 @@ while [[ -n "$1" ]]; do
 	shift
 done
 
+CRF=${CRF:-18} # If the CRF has not been set, set it to 18
+RESOLUTION=${RESOLUTION:-"hd1080"}
 OFR=${OFR:-$IFR} # If the output frame-rate isn't specified, make it the same as input frame-rate
 OUTPUT_LOCATION="${OUTPUT_LOCATION:-$INPUT_LOCATION}" # If output location isn't specified, set it to input location
 OUTPUT_NAME=${IFR}_${OFR}FPS_${RESOLUTION}_CRF${CRF}${REVERSE:+"-REVERSE"}.mkv # Naming Scheme: x_yFPS_z_CRFn.mkv | x_yFPS_z_CRFn-REVERSE.mkv
