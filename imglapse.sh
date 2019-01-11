@@ -41,7 +41,8 @@ SCRIPT_NAME="${0##*/}"
 # The associated command line argument for preset FOO is expected to be -foo
 declare -A TEST=([RESOLUTION]=hd480 [CRF]=29)
 declare -A FINAL=([RESOLUTION]=hd1080 [CRF]=18)
-PRESETS=(TEST FINAL)
+declare -A ORIGINAL=([RESOLUTION]=original [CRF]=18)
+PRESETS=(TEST FINAL ORIGINAL)
 
 apply_preset () {
 	# takes the preset name
@@ -83,6 +84,8 @@ usage () {
 	        W = Width and H = Height
 	    Standared ffmpeg size presets are also accepted. Some of these are:
 	    hd480, hd720, hd1080
+	    There is also a custom resolution 'original' which will set the output
+	    resolution to be the same as the input resolution.
 	    If unspecified, defaults to hd1080 
 
 	-r, --reverse
@@ -102,6 +105,7 @@ usage () {
 	    sets are available:
 	    -test  : -s hd480 -crf 29
 	    -final : -s hd1080 -crf 18
+	    -original : -s original -crf 18
 
 	    If more than one preset is specified, only applies the first one and
 	    ignores the rest. Manual parameter setting over-rides the parameters
@@ -180,13 +184,29 @@ while [[ -n "$1" ]]; do
 	shift
 done
 
+# Set Defaults
 CRF=${CRF:-18} # If the CRF has not been set, set it to 18
-RESOLUTION=${RESOLUTION:-"hd1080"}
+RESOLUTION=${RESOLUTION:-"hd1080"} # If the resolution has not been set, set it to hd1080
 OFR=${OFR:-$IFR} # If the output frame-rate isn't specified, make it the same as input frame-rate
 OUTPUT_LOCATION="${OUTPUT_LOCATION:-$INPUT_LOCATION}" # If output location isn't specified, set it to input location
+
+# Output name and location
 OUTPUT_NAME=${IFR}_${OFR}FPS_${RESOLUTION}_CRF${CRF}${REVERSE:+"-REVERSE"}.mkv # Naming Scheme: x_yFPS_z_CRFn.mkv | x_yFPS_z_CRFn-REVERSE.mkv
 OUTPUT="$OUTPUT_LOCATION/$OUTPUT_NAME"
 
+# Apply Final Filters
+RES_SLICE="-s $RESOLUTION" # The ffmpeg command slice dealing with the output resolution
+if [[ $RESOLUTION == 'original' ]]; then
+	RES_SLICE='' # This will cause ffmpeg to set the output resolution to the input resolution
+fi
+
+# Main Execution
 cd "$INPUT_LOCATION"
-eval cat \$\(ls ${REVERSE:+"-r"} $INPUT_PATTERN\) | ffmpeg -f image2pipe -framerate $IFR -i - -r ${OFR} -s $RESOLUTION -c:v libx264 -crf $CRF "$OUTPUT"
-echo -e "\nFile '$OUTPUT_NAME' has been saved to '$OUTPUT_LOCATION'."
+eval cat \$\(ls ${REVERSE:+"-r"} $INPUT_PATTERN\) | ffmpeg -f image2pipe -framerate $IFR -i - -r ${OFR} $RES_SLICE -c:v libx264 -crf $CRF "$OUTPUT"
+
+# Notify user about success or failure
+if [[ "$?" == 0 ]]; then
+	echo -e "\nFile '$OUTPUT_NAME' has been saved to '$OUTPUT_LOCATION'."
+else
+	echo -n # Don't output anything. ffmpeg will give the error messages.
+fi
